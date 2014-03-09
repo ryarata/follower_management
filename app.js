@@ -11,8 +11,8 @@ var path = require('path');
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
 
-var TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
-var TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
+var TWITTER_CONSUMER_KEY = "自分のConsumerKey";
+var TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
