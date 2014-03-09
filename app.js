@@ -72,7 +72,7 @@ app.get("/auth/twitter", passport.authenticate('twitter'));
 
 // Twitterからのcallback
 app.get("/auth/twitter/callback", passport.authenticate('twitter', {
-  successRedirect: '/timeline',
+  successRedirect: '/followers',
   failureRedirect: '/login'
 }));
 
@@ -96,8 +96,8 @@ app.get('/timeline', function(req,res){
 		まま利用できる。
 		*/
 		var jsonObj = JSON.parse(data);
-		console.log(jsonObj[1].user);
-		res.send(data);
+		
+		res.send(jsonObj);
         /*var jsonObj = JSON.parse(data);
         // ユーザ名とツイート内容だけ抜き出す
         var result = [];
@@ -107,6 +107,77 @@ app.get('/timeline', function(req,res){
         res.send(result);*/
 
     });
+});
+
+app.get('/followers', function(req,res){
+  // search tweets.
+	var name = "momokurimeron";
+    passport._strategies.twitter._oauth.getProtectedResource(
+        'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
+        'GET',
+    req.session.passport.user.twitter_token,
+    req.session.passport.user.twitter_token_secret,
+    function (err, data,response) {
+        if(err) {
+            res.send(err, 500);
+            return;
+        }
+		
+		//res.send(data);
+		var jsonObj = JSON.parse(data);
+		var result = jsonObj["ids"];
+		console.log(result);
+		var count = function(obj){
+			var cnt = 0;
+			for(var key in obj){
+				cnt++;
+			}
+			return cnt;
+		}
+		var amount = count(result);
+		console.log("amount: "+amount);
+		/*
+			一度に出来るuser_id→screen_nameへの変換は上限が
+			100件であり、それを越すと、エラーが起きる。
+			100件を超える場合、超えない場合での分岐が必要であり、それはまた今度
+		*/
+		//こっから下はUI用
+		passport._strategies.twitter._oauth.getProtectedResource(
+			'https://api.twitter.com/1.1/users/lookup.json?user_id='+result,
+			'GET',
+			req.session.passport.user.twitter_token,
+			req.session.passport.user.twitter_token_secret,
+			function (err, data_name,response_name) {
+				if(err) {
+				res.send(err, 500);
+				return;
+			}
+			var Obj = JSON.parse(data_name);
+			var twitter_id = [];
+			for(k in Obj){
+				twitter_id.push(Obj[k].screen_name);
+			}
+			console.log(count(twitter_id));
+			res.send(twitter_id);
+			});
+    });
+});
+app.get('/ids', function(req,res){
+  // search tweets.
+	console.log(req.session);
+	var name = "momokurimeron";
+    passport._strategies.twitter._oauth.getProtectedResource(
+        'https://api.twitter.com/1.1/users/lookup.json?user_id='+req.session.passport.user.id,
+        'GET',
+    req.session.passport.user.twitter_token,
+    req.session.passport.user.twitter_token_secret,
+    function (err, data,response) {
+        if(err) {
+            res.send(err, 500);
+            return;
+        }
+		res.send(data);
+	});
 });
 
 http.createServer(app).listen(app.get('port'), function(){
