@@ -127,6 +127,8 @@ app.get('/followers', function(req,res){
 		var jsonObj = JSON.parse(data);
 		var result = jsonObj["ids"];
 		console.log(result);
+		
+		var tag_id = [];
 		var count = function(obj){
 			var cnt = 0;
 			for(var key in obj){
@@ -134,8 +136,19 @@ app.get('/followers', function(req,res){
 			}
 			return cnt;
 		}
+		var get_tag_id = function(obj){
+			var cnt = 0;
+			for(var key in obj){
+				cnt++;
+				tag_id.push("twitter_id"+cnt);
+			}
+			return cnt,tag_id;
+		}
+		
 		var amount = count(result);
 		console.log("amount: "+amount);
+		var twitter_ids = get_tag_id(result);
+		console.log("twitter_ids: "+twitter_ids);
 		/*
 			一度に出来るuser_id→screen_nameへの変換は上限が
 			100件であり、それを越すと、エラーが起きる。
@@ -157,8 +170,11 @@ app.get('/followers', function(req,res){
 			for(k in Obj){
 				twitter_id.push(Obj[k].screen_name);
 			}
-			console.log(count(twitter_id));
-			res.send(twitter_id);
+			//res.send(twitter_id);
+			/*
+			作成したHTMLにid及び、中身を一意に識別するための情報を基にrenderする。
+			*/
+			res.render('index',{ twitter_id:twitter_id,amount:twitter_ids});
 			});
     });
 });
