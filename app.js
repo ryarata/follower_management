@@ -10,9 +10,11 @@ var http = require('http');
 var path = require('path');
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
+var pg = require('pg');
 
 var TWITTER_CONSUMER_KEY = "自分のConsumerKey";
 var TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
+var connectionString = "自分のpostgres server";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -66,6 +68,7 @@ if ('development' == app.get('env')) {
 app.get('/', routes.index);
 app.get('/login', routes.login);
 app.get('/users', user.list);
+app.get('/save_user',user.save_user);
 
 // Twitterの認証
 app.get("/auth/twitter", passport.authenticate('twitter'));
@@ -126,8 +129,8 @@ app.get('/followers', function(req,res){
 		//res.send(data);
 		var jsonObj = JSON.parse(data);
 		var result = jsonObj["ids"];
-		console.log(result);
-		
+		//console.log(result);
+		console.log(req.session);
 		var tag_id = [];
 		var count = function(obj){
 			var cnt = 0;
@@ -146,9 +149,9 @@ app.get('/followers', function(req,res){
 		}
 		
 		var amount = count(result);
-		console.log("amount: "+amount);
+		//console.log("amount: "+amount);
 		var twitter_ids = get_tag_id(result);
-		console.log("twitter_ids: "+twitter_ids);
+		//console.log("twitter_ids: "+twitter_ids);
 		/*
 			一度に出来るuser_id→screen_nameへの変換は上限が
 			100件であり、それを越すと、エラーが起きる。
@@ -198,4 +201,23 @@ app.get('/ids', function(req,res){
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
+});
+
+//postgre
+pg.connect(connectionString,function(error,client){
+	var query = client.query('SELECT * FROM user_identify');
+	query.on('error',function(error){
+	var msg = error;
+	console.log(error);
+	
+	});
+	query.on('row',function(row,error){
+		console.log("row event start...");
+		rows.push(row);
+	});
+	
+	query.on('end', function(row, error) {
+	  console.log("end event start...");
+			query = client.query('DELETE FROM user_identify');
+	  });
 });
