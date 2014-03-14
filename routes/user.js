@@ -8,5 +8,7 @@ exports.list = function(req, res){
 };
 
 exports.save_user = function(req,res){
+	var tw_id = req.body.tw_name;
+	console.log(tw_id);
 	res.render('login',{msg:'DB saveed!' ,title: 'Express'});
 };

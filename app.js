@@ -12,9 +12,10 @@ var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
 var pg = require('pg');
 
-var TWITTER_CONSUMER_KEY = "自分のConsumerKey";
-var TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
-var connectionString = "自分のpostgres server";
+var TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
+var TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
+var connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
+
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -68,7 +69,7 @@ if ('development' == app.get('env')) {
 app.get('/', routes.index);
 app.get('/login', routes.login);
 app.get('/users', user.list);
-app.get('/save_user',user.save_user);
+app.post('/save_user',user.save_user);
 
 // Twitterの認証
 app.get("/auth/twitter", passport.authenticate('twitter'));

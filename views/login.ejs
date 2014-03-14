@@ -5,8 +5,10 @@
     <link rel='stylesheet' href='/stylesheets/style.css' />
   </head>
   <body>
-	<p>screen_name: <input type="text" name="tw_name"></p>
-	<a href="/save_user">保存する</a></br>
+		<form method="POST" action="/save_user">
+			<p>screen_name: <input type="text" name="tw_name"></p>
+			<input type="submit" value="保存する">
+		</form>
 	<a href="/auth/twitter">login</a>
 	<p><%= msg %></p>
   </body>
