@@ -1,4 +1,8 @@
-
+/*
+問題点とか
+現状、DBにユーザーを登録、登録されたユーザーのフォロワーのIDを取得
+まではできているが、そのユーザーをDBにぶち込み、そこから重複を削除ができていない。
+*/
 /**
  * Module dependencies.
  */
@@ -10,12 +14,11 @@ var http = require('http');
 var path = require('path');
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
-var pg = require('pg');
+ pg = require('pg');
 
-var TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
-var TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
-var connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
-
+var TWITTER_CONSUMER_KEY = "自分のConsumerKey";
+var TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
+var connectionString = "自分のpostgres server";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -114,24 +117,72 @@ app.get('/timeline', function(req,res){
 });
 
 app.get('/followers', function(req,res){
-  // search tweets.
-	var name = "momokurimeron";
-    passport._strategies.twitter._oauth.getProtectedResource(
-        'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
-        'GET',
-    req.session.passport.user.twitter_token,
-    req.session.passport.user.twitter_token_secret,
-    function (err, data,response) {
-        if(err) {
-            res.send(err, 500);
-            return;
-        }
-		
-		//res.send(data);
-		var jsonObj = JSON.parse(data);
-		var result = jsonObj["ids"];
-		//console.log(result);
-		console.log(req.session);
+  var name = "";
+  var rows = [];
+  var jsonObj = "";
+  var result = [];
+  //DB connect.
+  pg.connect(connectionString,function(error,client){
+		var query = client.query('select count(*) from user_identify;',function(err,results){
+			if(err){
+				console.log(err);
+			}else{
+				console.log("table rows: "+results.rows[0]["count"]);
+				var rows_count = results.rows[0]["count"]; 
+				for(var i = 0;i < rows_count;i++){
+					query.on('error',function(error){
+						console.log(error);
+					});
+					query.on('row',function(row,error){
+						rows.push(row);
+					});
+					name = rows[i];
+					console.log(name);
+					passport._strategies.twitter._oauth.getProtectedResource(
+						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
+						'GET',
+					req.session.passport.user.twitter_token,
+					req.session.passport.user.twitter_token_secret,
+					function (err, data,response) {
+						if(err) {
+							res.send(err, 500);
+							return;
+						}
+						jsonObj = JSON.parse(data);
+						result.push(jsonObj);
+						//console.log(result[0]["ids"]);
+						
+						var tag_id = [];
+						var count = function(obj){
+							var cnt = 0;
+							for(var key in obj){
+								cnt++;
+							}
+							return cnt;
+						}
+						var get_tag_id = function(obj){
+							var cnt = 0;
+							for(var key in obj){
+								cnt++;
+								tag_id.push("twitter_id"+cnt);
+							}
+							return cnt,tag_id;
+						}
+						
+						var amount = count(result[0]["ids"]);
+						console.log("amount: "+amount);
+						var twitter_ids = get_tag_id(result[0]["ids"]);
+						if(i = rows_count){
+							res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
+						}
+					});
+				}
+				
+				//console.log("twitter_ids: "+twitter_ids);
+			}
+		});
+	});
+    /*
 		var tag_id = [];
 		var count = function(obj){
 			var cnt = 0;
@@ -157,7 +208,7 @@ app.get('/followers', function(req,res){
 			一度に出来るuser_id→screen_nameへの変換は上限が
 			100件であり、それを越すと、エラーが起きる。
 			100件を超える場合、超えない場合での分岐が必要であり、それはまた今度
-		*/
+		
 		//こっから下はUI用
 		passport._strategies.twitter._oauth.getProtectedResource(
 			'https://api.twitter.com/1.1/users/lookup.json?user_id='+result,
@@ -178,9 +229,11 @@ app.get('/followers', function(req,res){
 			/*
 			作成したHTMLにid及び、中身を一意に識別するための情報を基にrenderする。
 			*/
-			res.render('index',{ twitter_id:twitter_id,amount:twitter_ids});
-			});
-    });
+			//res.render('index',{ twitter_id:twitter_id,amount:twitter_ids});
+			
+			/*});
+		});
+    });*/
 });
 app.get('/ids', function(req,res){
   // search tweets.
@@ -204,21 +257,3 @@ http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
 });
 
-//postgre
-pg.connect(connectionString,function(error,client){
-	var query = client.query('SELECT * FROM user_identify');
-	query.on('error',function(error){
-	var msg = error;
-	console.log(error);
-	
-	});
-	query.on('row',function(row,error){
-		console.log("row event start...");
-		rows.push(row);
-	});
-	
-	query.on('end', function(row, error) {
-	  console.log("end event start...");
-			query = client.query('DELETE FROM user_identify');
-	  });
-});
