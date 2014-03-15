@@ -16,9 +16,9 @@ var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
  pg = require('pg');
 
-var TWITTER_CONSUMER_KEY = "自分のConsumerKey";
-var TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
-var connectionString = "自分のpostgres server";
+TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
+TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
+connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -121,64 +121,62 @@ app.get('/followers', function(req,res){
   var rows = [];
   var jsonObj = "";
   var result = [];
+  var rows_count = 0;
   //DB connect.
   pg.connect(connectionString,function(error,client){
-		var query = client.query('select count(*) from user_identify;',function(err,results){
-			if(err){
-				console.log(err);
-			}else{
-				console.log("table rows: "+results.rows[0]["count"]);
-				var rows_count = results.rows[0]["count"]; 
-				for(var i = 0;i < rows_count;i++){
-					query.on('error',function(error){
-						console.log(error);
-					});
+		//user_identifyテーブル内にあるrowの個数をカウント
+		client.query('select count(*) from user_identify;',function(err,results){
+			console.log("table rows: "+results.rows[0]["count"]);
+			rows_count = results.rows[0]["count"]; 
+				
+				//上で取得したROWの数を元に、ユーザーのfollowerIDを取得
+			for(var i = 0;i < rows_count;i++){
+				query = client.query('select * from user_identify;',function(err,result){
 					query.on('row',function(row,error){
 						rows.push(row);
-					});
-					name = rows[i];
-					console.log(name);
-					passport._strategies.twitter._oauth.getProtectedResource(
-						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
-						'GET',
-					req.session.passport.user.twitter_token,
-					req.session.passport.user.twitter_token_secret,
-					function (err, data,response) {
-						if(err) {
-							res.send(err, 500);
-							return;
-						}
-						jsonObj = JSON.parse(data);
-						result.push(jsonObj);
-						//console.log(result[0]["ids"]);
-						
-						var tag_id = [];
-						var count = function(obj){
-							var cnt = 0;
-							for(var key in obj){
-								cnt++;
+						name = rows[i];
+						console.log("name: "+name);
+					
+						passport._strategies.twitter._oauth.getProtectedResource(
+							'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
+							'GET',
+						req.session.passport.user.twitter_token,
+						req.session.passport.user.twitter_token_secret,
+						function (err, data,response) {
+							if(err) {
+								res.send(err, 500);
+								return;
 							}
-							return cnt;
-						}
-						var get_tag_id = function(obj){
-							var cnt = 0;
-							for(var key in obj){
-								cnt++;
-								tag_id.push("twitter_id"+cnt);
+							jsonObj = JSON.parse(data);
+							result.push(jsonObj);
+							//console.log(result[0]["ids"]);
+							
+							var tag_id = [];
+							var count = function(obj){
+								var cnt = 0;
+								for(var key in obj){
+									cnt++;
+								}
+								return cnt;
 							}
-							return cnt,tag_id;
-						}
-						
-						var amount = count(result[0]["ids"]);
-						console.log("amount: "+amount);
-						var twitter_ids = get_tag_id(result[0]["ids"]);
-						if(i = rows_count){
-							res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
-						}
+							var get_tag_id = function(obj){
+								var cnt = 0;
+								for(var key in obj){
+									cnt++;
+									tag_id.push("twitter_id"+cnt);
+								}
+								return cnt,tag_id;
+							}
+							
+							var amount = count(result[0]["ids"]);
+							console.log("amount: "+amount);
+							var twitter_ids = get_tag_id(result[0]["ids"]);
+							if(i = rows_count){
+								res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
+							}
+						});
 					});
-				}
-				
-				//console.log("twitter_ids: "+twitter_ids);
+				});
 			}
 		});
 	});
