@@ -1,7 +1,6 @@
 /*
 問題点とか
-現状、DBにユーザーを登録、登録されたユーザーのフォロワーのIDを取得
-まではできているが、そのユーザーをDBにぶち込み、そこから重複を削除ができていない。
+現状では、同期処理をしたいが、非同期処理になってしまうため、順番通りにidを取得できない
 */
 /**
  * Module dependencies.
@@ -14,11 +13,12 @@ var http = require('http');
 var path = require('path');
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
+var async = require('async');
  pg = require('pg');
 
-TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
-TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
-connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
+TWITTER_CONSUMER_KEY = "自分のConsumerKey";
+TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
+connectionString = "自分のpostgres server";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -117,67 +117,72 @@ app.get('/timeline', function(req,res){
 });
 
 app.get('/followers', function(req,res){
-  var name = "";
-  var rows = [];
-  var jsonObj = "";
-  var result = [];
-  var rows_count = 0;
+	var name = "";
+	var jsonObj = "";
+	var result = [];
+	var rows = [];
+	var tag_id = [];
+	
+	//下で使うカウント関数
+	var count = function(obj){
+		var cnt = 0;
+		for(var key in obj){
+			cnt++;
+		}
+		return cnt;
+	}
+	var get_tag_id = function(obj){
+		var cnt = 0;
+		for(var key in obj){
+			cnt++;
+			tag_id.push("twitter_id"+cnt);
+		}
+		return cnt,tag_id;
+	}
   //DB connect.
   pg.connect(connectionString,function(error,client){
 		//user_identifyテーブル内にあるrowの個数をカウント
 		client.query('select count(*) from user_identify;',function(err,results){
 			console.log("table rows: "+results.rows[0]["count"]);
-			rows_count = results.rows[0]["count"]; 
-				
-				//上で取得したROWの数を元に、ユーザーのfollowerIDを取得
-			for(var i = 0;i < rows_count;i++){
-				query = client.query('select * from user_identify;',function(err,result){
-					query.on('row',function(row,error){
-						rows.push(row);
-						name = rows[i];
-						console.log("name: "+name);
-					
-						passport._strategies.twitter._oauth.getProtectedResource(
-							'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
-							'GET',
-						req.session.passport.user.twitter_token,
-						req.session.passport.user.twitter_token_secret,
-						function (err, data,response) {
-							if(err) {
-								res.send(err, 500);
-								return;
-							}
-							jsonObj = JSON.parse(data);
-							result.push(jsonObj);
-							//console.log(result[0]["ids"]);
-							
-							var tag_id = [];
-							var count = function(obj){
-								var cnt = 0;
-								for(var key in obj){
-									cnt++;
-								}
-								return cnt;
-							}
-							var get_tag_id = function(obj){
-								var cnt = 0;
-								for(var key in obj){
-									cnt++;
-									tag_id.push("twitter_id"+cnt);
-								}
-								return cnt,tag_id;
-							}
-							
-							var amount = count(result[0]["ids"]);
-							console.log("amount: "+amount);
-							var twitter_ids = get_tag_id(result[0]["ids"]);
-							if(i = rows_count){
-								res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
-							}
-						});
-					});
+			rows_count = results.rows[0]["count"]; 	
+			//上で取得したROWの数を元に、ユーザーのfollowerIDを取得
+			query = client.query('select * from user_identify;');
+			query.on('row',function(row,error){
+				rows.push(row["name"]);
 				});
-			}
+			query.on('end',function(row,error){
+				//followerIDからscreen_nameを取得
+				var rows_amount = count(rows);
+				console.log("rows_amount: "+rows_amount);
+				
+				for(var i = 0;i<rows_amount;i++){
+					console.log("rows["+i+"]: "+JSON.stringify(rows[i]));
+					passport._strategies.twitter._oauth.getProtectedResource(
+						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+rows[i],
+						'GET',
+					req.session.passport.user.twitter_token,
+					req.session.passport.user.twitter_token_secret,
+					function (err, data,response) {
+						if(err) {
+							res.send(err, 500);
+							return;
+						}
+						jsonObj = JSON.parse(data);
+						result.push(jsonObj);
+						console.log("result[ids]: "+result[0]["ids"]);
+						
+						
+
+						
+						var amount = count(result[0]["ids"]);
+						console.log("amount: "+amount);
+						var twitter_ids = get_tag_id(result[0]["ids"]);
+						if(i == rows_amount){
+							res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
+						}
+					});
+				}
+			});		
 		});
 	});
     /*
