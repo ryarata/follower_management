@@ -16,9 +16,9 @@ var TwitterStrategy = require('passport-twitter').Strategy;
 var async = require('async');
  pg = require('pg');
 
-TWITTER_CONSUMER_KEY = "自分のConsumerKey";
-TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
-connectionString = "自分のpostgres server";
+TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
+TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
+connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
@@ -122,6 +122,8 @@ app.get('/followers', function(req,res){
 	var result = [];
 	var rows = [];
 	var tag_id = [];
+	var result_ids = [];
+	var count_ids = [];
 	
 	//下で使うカウント関数
 	var count = function(obj){
@@ -141,6 +143,8 @@ app.get('/followers', function(req,res){
 	}
   //DB connect.
   pg.connect(connectionString,function(error,client){
+		//get_twittter_idsにあるrowを削除
+		client.query('DELETE FROM get_twitter_ids;');
 		//user_identifyテーブル内にあるrowの個数をカウント
 		client.query('select count(*) from user_identify;',function(err,results){
 			console.log("table rows: "+results.rows[0]["count"]);
@@ -155,10 +159,13 @@ app.get('/followers', function(req,res){
 				var rows_amount = count(rows);
 				console.log("rows_amount: "+rows_amount);
 				
-				for(var i = 0;i<rows_amount;i++){
-					console.log("rows["+i+"]: "+JSON.stringify(rows[i]));
+				var i = 0;
+				async.forEachSeries(rows,function(val,callback){
+					//console.log("rows["+i+"]: "+JSON.stringify(rows[i]));
+					var name = rows[i];
+					console.log("name: "+JSON.stringify(name));
 					passport._strategies.twitter._oauth.getProtectedResource(
-						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+rows[i],
+						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
 						'GET',
 					req.session.passport.user.twitter_token,
 					req.session.passport.user.twitter_token_secret,
@@ -169,19 +176,52 @@ app.get('/followers', function(req,res){
 						}
 						jsonObj = JSON.parse(data);
 						result.push(jsonObj);
-						console.log("result[ids]: "+result[0]["ids"]);
+						//console.log("result["+i+"][ids]: "+result[i]["ids"]);
 						
+						var amount = count(result[i]["ids"]);
+						//console.log("amount: "+amount);
 						
-
-						
-						var amount = count(result[0]["ids"]);
-						console.log("amount: "+amount);
-						var twitter_ids = get_tag_id(result[0]["ids"]);
-						if(i == rows_amount){
-							res.render('index',{ twitter_id:JSON.stringify(result[0]["ids"]),amount:twitter_ids});
+						for(v in result[i]["ids"]){
+							query = client.query("INSERT INTO get_twitter_ids(ids) VALUES("+result[i]["ids"][v]+");");
 						}
+						i++;
+						callback();
 					});
-				}
+				},function() {
+					query = client.query('SELECT ids,COUNT(*)AS ids_count FROM get_twitter_ids GROUP BY ids HAVING(COUNT(*)>1) ORDER BY ids;');
+					query.on('error',function(error){
+						console.log("error: "+error);
+					});
+					query.on('row',function(row){
+						result_ids.push(row["ids"]);
+						count_ids.push(row["ids_count"]);
+						//console.log("row: "+JSON.stringify(result_ids));
+						//console.log("count_ids"+JSON.stringify(count_ids))
+					});
+					query.on('end',function(end){
+						passport._strategies.twitter._oauth.getProtectedResource(
+							'https://api.twitter.com/1.1/users/lookup.json?user_id='+result_ids,
+							'GET',
+							req.session.passport.user.twitter_token,
+							req.session.passport.user.twitter_token_secret,
+							function (err, data_name,response_name) {
+								if(err) {
+								res.send(err, 500);
+								return;
+							}
+							//console.log("data_name: "+data_name.screen_name);
+							var Obj = JSON.parse(data_name);
+							var twitter_id = [];
+							for(k in Obj){
+								twitter_id.push("name: "+Obj[k].screen_name+"    count: "+count_ids[k]);
+							}
+							var array = JSON.stringify(twitter_id).split(",");
+							var amount_ids = get_tag_id(array);
+							console.log(array);
+							res.render('index',{twitter_id:array,amount:amount_ids});
+						});
+					});
+				});
 			});		
 		});
 	});
@@ -259,4 +299,3 @@ app.get('/ids', function(req,res){
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
 });
-
