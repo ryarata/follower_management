@@ -1,6 +1,5 @@
 /*
-問題点とか
-現状では、同期処理をしたいが、非同期処理になってしまうため、順番通りにidを取得できない
+できたどー！
 */
 /**
  * Module dependencies.
@@ -16,9 +15,9 @@ var TwitterStrategy = require('passport-twitter').Strategy;
 var async = require('async');
  pg = require('pg');
 
-TWITTER_CONSUMER_KEY = "l64F8GdLVbKdkh7kMFHWEw";
-TWITTER_CONSUMER_SECRET = "vExiA6ykDWiA1ldbAypdxOHkaiAo7w82CgfY0Bcu7Co";
-connectionString = "tcp://arata:assamdarje2013@localhost:5432/follower_management";
+TWITTER_CONSUMER_KEY = "自分のConsumerKey";
+TWITTER_CONSUMER_SECRET = "自分のConsumerSecret";
+connectionString = "自分のpostgres server";
 
 // Passport sessionのセットアップ
 passport.serializeUser(function(user, done) {
