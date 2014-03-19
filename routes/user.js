@@ -6,6 +6,7 @@ exports.list = function(req, res){
   res.send("respond with a resource");
 };
 
+//textformに入力された、twitterのscreen_nameをデータベースに格納
 exports.save_user = function(req,res){
 	var tw_id = req.body.tw_name;
 	var array = tw_id.split(",");

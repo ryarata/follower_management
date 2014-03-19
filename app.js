@@ -1,5 +1,9 @@
 /*
-できたどー！
+このアプリケーションを使用するためには、postresSQLをインストールし、binにpathが通っていることを必須とする。
+また、postgres内には、follower_managementというDB、user_identify、get_twitter_idsというテーブルをあらかじめ
+作成する必要がある。
+user_identifyテーブルには、name(char　varying(15))というカラムを作成し、
+get_twitter_idsには、ids(int8)というカラムを作成する。
 */
 /**
  * Module dependencies.
@@ -116,6 +120,7 @@ app.get('/timeline', function(req,res){
 });
 
 app.get('/followers', function(req,res){
+	//必要な変数の設定
 	var name = "";
 	var jsonObj = "";
 	var result = [];
@@ -140,6 +145,7 @@ app.get('/followers', function(req,res){
 		}
 		return cnt,tag_id;
 	}
+	
   //DB connect.
   pg.connect(connectionString,function(error,client){
 		//get_twittter_idsにあるrowを削除
@@ -158,11 +164,14 @@ app.get('/followers', function(req,res){
 				var rows_amount = count(rows);
 				console.log("rows_amount: "+rows_amount);
 				
+				//asyncを使用しているのは、非同期処理地獄に陥るから
+				//async.forEachSeriesはオブジェクトの中身の分だけ同期処理でループをする。これがなかったらできなかった。
 				var i = 0;
 				async.forEachSeries(rows,function(val,callback){
 					//console.log("rows["+i+"]: "+JSON.stringify(rows[i]));
 					var name = rows[i];
 					console.log("name: "+JSON.stringify(name));
+					//先ほどDBから取得した、screen_nameを基に、そのユーザーのフォロワーのIDをGET
 					passport._strategies.twitter._oauth.getProtectedResource(
 						'https://api.twitter.com/1.1/followers/ids.json?screen_name='+name,
 						'GET',
@@ -173,13 +182,15 @@ app.get('/followers', function(req,res){
 							res.send(err, 500);
 							return;
 						}
+						
+						//COUNT関数を使用するためにはオブジェクト化する必要があり、そのために配列にぶち込む
 						jsonObj = JSON.parse(data);
 						result.push(jsonObj);
 						//console.log("result["+i+"][ids]: "+result[i]["ids"]);
-						
 						var amount = count(result[i]["ids"]);
 						//console.log("amount: "+amount);
 						
+						//getしたIDをDBへぶち込む
 						for(v in result[i]["ids"]){
 							query = client.query("INSERT INTO get_twitter_ids(ids) VALUES("+result[i]["ids"][v]+");");
 						}
@@ -187,6 +198,8 @@ app.get('/followers', function(req,res){
 						callback();
 					});
 				},function() {
+					//どのIDがどれだけ重複しているかを調べ、その結果をpushしている
+					//もし、100件を超えるような場合は、HAVING(COUNT(*)>1)の数字を増やせばおｋ
 					query = client.query('SELECT ids,COUNT(*)AS ids_count FROM get_twitter_ids GROUP BY ids HAVING(COUNT(*)>1) ORDER BY ids;');
 					query.on('error',function(error){
 						console.log("error: "+error);
@@ -197,6 +210,8 @@ app.get('/followers', function(req,res){
 						//console.log("row: "+JSON.stringify(result_ids));
 						//console.log("count_ids"+JSON.stringify(count_ids))
 					});
+					//重複チェックがすべて終わったら、それらをまとめてscreen_nameへ変換
+					//100件超えるとエラー出る(暇だったら修正する)
 					query.on('end',function(end){
 						passport._strategies.twitter._oauth.getProtectedResource(
 							'https://api.twitter.com/1.1/users/lookup.json?user_id='+result_ids,
@@ -209,14 +224,20 @@ app.get('/followers', function(req,res){
 								return;
 							}
 							//console.log("data_name: "+data_name.screen_name);
+							
+							//カウント関数使うためにオブジェクト化するので、取得結果(data_name)を配列にぶち込む
 							var Obj = JSON.parse(data_name);
 							var twitter_id = [];
+							//重複のカウント回数も表示したいから、screen_nameにくっつける
 							for(k in Obj){
 								twitter_id.push("name: "+Obj[k].screen_name+"    count: "+count_ids[k]);
 							}
+							//表示されたHTML内で一意のIDを付けるために、get_tag_id関数で、IDを作成(ぶっちゃけいらん)
 							var array = JSON.stringify(twitter_id).split(",");
 							var amount_ids = get_tag_id(array);
 							console.log(array);
+							
+							//screen_name+重複カウント結果、タグIDを送って、レンダリングする
 							res.render('index',{twitter_id:array,amount:amount_ids});
 						});
 					});
@@ -224,76 +245,8 @@ app.get('/followers', function(req,res){
 			});		
 		});
 	});
-    /*
-		var tag_id = [];
-		var count = function(obj){
-			var cnt = 0;
-			for(var key in obj){
-				cnt++;
-			}
-			return cnt;
-		}
-		var get_tag_id = function(obj){
-			var cnt = 0;
-			for(var key in obj){
-				cnt++;
-				tag_id.push("twitter_id"+cnt);
-			}
-			return cnt,tag_id;
-		}
-		
-		var amount = count(result);
-		//console.log("amount: "+amount);
-		var twitter_ids = get_tag_id(result);
-		//console.log("twitter_ids: "+twitter_ids);
-		/*
-			一度に出来るuser_id→screen_nameへの変換は上限が
-			100件であり、それを越すと、エラーが起きる。
-			100件を超える場合、超えない場合での分岐が必要であり、それはまた今度
-		
-		//こっから下はUI用
-		passport._strategies.twitter._oauth.getProtectedResource(
-			'https://api.twitter.com/1.1/users/lookup.json?user_id='+result,
-			'GET',
-			req.session.passport.user.twitter_token,
-			req.session.passport.user.twitter_token_secret,
-			function (err, data_name,response_name) {
-				if(err) {
-				res.send(err, 500);
-				return;
-			}
-			var Obj = JSON.parse(data_name);
-			var twitter_id = [];
-			for(k in Obj){
-				twitter_id.push(Obj[k].screen_name);
-			}
-			//res.send(twitter_id);
-			/*
-			作成したHTMLにid及び、中身を一意に識別するための情報を基にrenderする。
-			*/
-			//res.render('index',{ twitter_id:twitter_id,amount:twitter_ids});
-			
-			/*});
-		});
-    });*/
 });
-app.get('/ids', function(req,res){
-  // search tweets.
-	console.log(req.session);
-	var name = "momokurimeron";
-    passport._strategies.twitter._oauth.getProtectedResource(
-        'https://api.twitter.com/1.1/users/lookup.json?user_id='+req.session.passport.user.id,
-        'GET',
-    req.session.passport.user.twitter_token,
-    req.session.passport.user.twitter_token_secret,
-    function (err, data,response) {
-        if(err) {
-            res.send(err, 500);
-            return;
-        }
-		res.send(data);
-	});
-});
+
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
